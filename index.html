@@ -182,6 +182,10 @@ footer{background:var(--teal-deep);color:rgba(234,243,242,.72);padding:44px 0 40
 .cover-drop{border:1px dashed var(--line);border-radius:10px;padding:14px;display:flex;align-items:center;gap:14px}
 .cover-prev{width:96px;height:54px;border-radius:8px;background:var(--surface,#eef4f6);background-size:cover;background-position:center;flex:0 0 auto;border:1px solid var(--line)}
 .cover-drop .lbl2{font-family:'Montserrat',sans-serif;font-size:12px;color:var(--stone)}
+.cover-btns{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.cbtn{font-family:'Montserrat',sans-serif;font-size:12px;font-weight:600;background:#fff;border:1px solid var(--line);color:var(--ink);padding:8px 12px;border-radius:8px;cursor:pointer}
+.cbtn:hover{border-color:var(--teal)}
+.cbtn.upl{display:inline-flex;align-items:center}
 .toggle{display:flex;align-items:center;gap:10px;font-family:'Montserrat',sans-serif;font-size:13px;font-weight:600;color:var(--ink)}
 .switch{width:44px;height:26px;border-radius:999px;background:#cdd6d8;position:relative;cursor:pointer;transition:.15s;flex:0 0 auto}
 .switch.on{background:var(--green-dark)}
@@ -301,12 +305,16 @@ footer{background:var(--teal-deep);color:rgba(234,243,242,.72);padding:44px 0 40
       <div class="field"><label>Description</label><textarea id="fDesc" placeholder="A short, candid line about what is inside"></textarea></div>
       <div class="field"><label>Video link (paste the public R2 MP4 link, or just the file name)</label><input id="fUrl" type="text" placeholder="my-video.mp4"></div>
       <div class="field">
-        <label>Cover image (optional)</label>
+        <label>Cover image</label>
         <div class="cover-drop">
           <div class="cover-prev" id="coverPrev"></div>
-          <div>
-            <input id="fCover" type="file" accept="image/*" onchange="onCover(this)" style="font-family:Montserrat,sans-serif;font-size:12px">
-            <div class="lbl2">If left blank, a branded topic cover is used.</div>
+          <div style="flex:1">
+            <div class="cover-btns">
+              <button type="button" class="cbtn" onclick="genCover()">Generate branded cover</button>
+              <button type="button" class="cbtn" onclick="grabFrame()">Grab frame from video</button>
+              <label class="cbtn upl">Upload image<input id="fCover" type="file" accept="image/*" onchange="onCover(this)" hidden></label>
+            </div>
+            <div class="lbl2" id="coverNote">Leave it and a branded cover is generated for you on save.</div>
           </div>
         </div>
       </div>
@@ -567,13 +575,91 @@ function openForm(id){
   document.getElementById('fDesc').value=v?(v.desc||''):'';
   document.getElementById('fUrl').value=v?(v.videoUrl||''):'';
   var pub=document.getElementById('fPub');if(v&&v.published)pub.classList.add('on');else pub.classList.remove('on');
-  var prev=document.getElementById('coverPrev');
-  if(v&&v.poster){prev.style.backgroundImage='url('+v.poster+')';coverData=v.poster;}else{prev.style.backgroundImage='';}
+  if(v&&v.poster){setPrev(v.poster);}else{setPrev(null);}
   openOv('ovForm');
 }
+function setPrev(dataUrl){coverData=dataUrl;document.getElementById('coverPrev').style.backgroundImage=dataUrl?('url('+dataUrl+')'):'';}
 function onCover(inp){
   var f=inp.files&&inp.files[0];if(!f)return;
-  compressImage(f,function(dataUrl){coverData=dataUrl;document.getElementById('coverPrev').style.backgroundImage='url('+dataUrl+')';});
+  compressImage(f,function(dataUrl){setPrev(dataUrl);toast('Cover uploaded');});
+}
+var PAL_HEX={'Sales & Scripts':['#0b5560','#00818D'],'Product & Guidelines':['#123b3f','#2a6b62'],'Culture':['#3f6b12','#6F9A16'],'Market Update':['#b9791a','#FFAC27'],'Quick Wins':['#0e474e','#1f7f7b'],'Leadership':['#052528','#0b6b70']};
+function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function wrapLines(ctx,text,maxW){
+  var words=(text||'').split(/\s+/),lines=[],line='';
+  for(var i=0;i<words.length;i++){var test=line?line+' '+words[i]:words[i];if(ctx.measureText(test).width>maxW&&line){lines.push(line);line=words[i];}else{line=test;}}
+  if(line)lines.push(line);return lines;
+}
+function generateCover(topic,title,who){
+  return new Promise(function(resolve){
+    var pal=PAL_HEX[topic]||PAL_HEX['Leadership'];
+    var draw=function(){
+      var W=1280,H=720,c=document.createElement('canvas');c.width=W;c.height=H;var ctx=c.getContext('2d');
+      var g=ctx.createLinearGradient(0,0,W,H);g.addColorStop(0,pal[0]);g.addColorStop(1,pal[1]);ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+      var rg=ctx.createRadialGradient(W*0.82,-40,60,W*0.82,-40,640);rg.addColorStop(0,'rgba(0,129,141,0.42)');rg.addColorStop(1,'rgba(0,129,141,0)');ctx.fillStyle=rg;ctx.fillRect(0,0,W,H);
+      var logo=document.querySelector('.logo-tile img');
+      var after=function(){
+        var PX=72;
+        // on air dot + marks
+        ctx.fillStyle='#FFAC27';ctx.beginPath();ctx.arc(PX+7,72,7,0,Math.PI*2);ctx.fill();
+        ctx.textBaseline='middle';
+        try{ctx.letterSpacing='4px';}catch(e){}
+        ctx.font='700 16px Montserrat, sans-serif';ctx.fillStyle='#FFAC27';ctx.fillText('ON AIR',PX+24,73);
+        ctx.fillStyle='rgba(255,255,255,0.6)';ctx.fillText('PARTNERS UNPLUGGED',PX+128,73);
+        try{ctx.letterSpacing='0px';}catch(e){}
+        // gold bar
+        ctx.fillStyle='#FFAC27';roundRect(ctx,PX,300,64,5,3);ctx.fill();
+        // topic pill
+        ctx.font='600 15px Montserrat, sans-serif';try{ctx.letterSpacing='2px';}catch(e){}
+        var tp=(topic||'').toUpperCase(),tw=ctx.measureText(tp).width;
+        ctx.strokeStyle='rgba(255,255,255,0.35)';ctx.lineWidth=1.5;roundRect(ctx,PX,326,tw+40,44,22);ctx.stroke();
+        ctx.fillStyle='#fff';ctx.fillText(tp,PX+20,349);
+        try{ctx.letterSpacing='0px';}catch(e){}
+        // title (auto-fit up to 3 lines)
+        var size=66,lines,maxW=W-PX-360;
+        while(size>=40){ctx.font='italic 500 '+size+'px Lora, Georgia, serif';lines=wrapLines(ctx,title||'Untitled',maxW);if(lines.length<=3)break;size-=4;}
+        ctx.fillStyle='#fff';var ty=410;for(var i=0;i<lines.length&&i<3;i++){ctx.fillText(lines[i],PX,ty);ty+=size*1.12;}
+        // who
+        var ay=ty+8;
+        var ag=ctx.createLinearGradient(PX,ay-18,PX+40,ay+18);ag.addColorStop(0,'#00818D');ag.addColorStop(1,'#6F9A16');
+        ctx.fillStyle=ag;ctx.beginPath();ctx.arc(PX+22,ay,22,0,Math.PI*2);ctx.fill();
+        ctx.font='700 15px Montserrat, sans-serif';ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText(initials(who),PX+22,ay+1);ctx.textAlign='left';
+        ctx.font='500 19px Montserrat, sans-serif';ctx.fillStyle='rgba(234,243,242,0.85)';ctx.fillText(who||'Partners leadership',PX+58,ay+1);
+        var q=0.85,out=c.toDataURL('image/jpeg',q);while(out.length>700000&&q>0.4){q-=0.1;out=c.toDataURL('image/jpeg',q);}
+        resolve(out);
+      };
+      if(logo&&logo.complete){ctx.save();ctx.globalAlpha=0.10;ctx.drawImage(logo,W-470,H-360,560,560);ctx.restore();after();}
+      else if(logo){logo.onload=function(){ctx.save();ctx.globalAlpha=0.10;ctx.drawImage(logo,W-470,H-360,560,560);ctx.restore();after();};}
+      else{after();}
+    };
+    if(document.fonts&&document.fonts.load){
+      Promise.all([document.fonts.load('italic 500 66px Lora'),document.fonts.load('700 16px Montserrat'),document.fonts.load('600 15px Montserrat'),document.fonts.load('500 19px Montserrat')]).then(draw).catch(draw);
+    }else{draw();}
+  });
+}
+function genCover(){
+  var title=document.getElementById('fTitle').value.trim();
+  if(!title){document.getElementById('formErr').innerHTML='Add a title first, then generate.';return;}
+  document.getElementById('formErr').innerHTML='';
+  generateCover(document.getElementById('fTopic').value,title,document.getElementById('fWho').value.trim()).then(function(d){setPrev(d);toast('Branded cover made');});
+}
+function grabFrame(){
+  var errEl=document.getElementById('formErr');errEl.innerHTML='';
+  var url=resolveUrl(document.getElementById('fUrl').value.trim());
+  if(!url){errEl.innerHTML='Add the video link first, then grab a frame.';return;}
+  toast('Reading the video');
+  var v=document.createElement('video');v.crossOrigin='anonymous';v.preload='metadata';v.muted=true;v.playsInline=true;v.src=url;
+  v.addEventListener('loadeddata',function(){try{v.currentTime=Math.min(1.2,(v.duration||3)/3);}catch(e){}});
+  v.addEventListener('seeked',function(){
+    try{
+      var max=1280,w=v.videoWidth,h=v.videoHeight;if(!w){errEl.innerHTML='Could not read that video.';return;}
+      if(w>max){h=Math.round(h*max/w);w=max;}
+      var c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(v,0,0,w,h);
+      var q=0.82,out=c.toDataURL('image/jpeg',q);while(out.length>700000&&q>0.4){q-=0.1;out=c.toDataURL('image/jpeg',q);}
+      setPrev(out);toast('Frame captured');
+    }catch(err){errEl.innerHTML='The bucket is not allowing frame capture yet. Add the CORS policy to the bucket, then try again.';}
+  });
+  v.addEventListener('error',function(){errEl.innerHTML='Could not load that video link.';});
 }
 function compressImage(file,cb){
   var rd=new FileReader();
@@ -606,16 +692,15 @@ function saveVideo(){
     videoUrl:document.getElementById('fUrl').value.trim(),
     published:document.getElementById('fPub').classList.contains('on')
   };
-  if(coverData!==null)data.poster=coverData;
   var btn=document.getElementById('saveBtn');btn.disabled=true;
   var done=function(){btn.disabled=false;closeOv('ovForm');toast(editingId?'Saved':'Video added');};
   var fail=function(){btn.disabled=false;errEl.innerHTML='Save failed. Check your connection and rules.';};
-  if(editingId){
-    db.collection('videos').doc(editingId).update(data).then(done).catch(fail);
-  }else{
-    data.order=Date.now();
-    db.collection('videos').add(data).then(done).catch(fail);
-  }
+  var write=function(){
+    if(editingId){db.collection('videos').doc(editingId).update(data).then(done).catch(fail);}
+    else{data.order=Date.now();db.collection('videos').add(data).then(done).catch(fail);}
+  };
+  if(coverData!==null){data.poster=coverData;write();}
+  else{generateCover(data.topic,data.title,data.who).then(function(d){data.poster=d;write();}).catch(write);}
 }
 function confirmDelete(v){
   uiConfirm('Delete this video','"'+ (v.title||'Untitled') +'" will be removed for everyone. This cannot be undone.',function(){
